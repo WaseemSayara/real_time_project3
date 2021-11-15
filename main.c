@@ -3,14 +3,14 @@
 #include <unistd.h>
 #include <sched.h>
 
-
-#define MAXTHRESHOLD 40
+#define MAXTHRESHOLD 30
 #define MINTHRESHOLD 20
+#define numOfLoadingEmployees 4
 
-pthread_t technical_employee[10][10], storage_employee;
+pthread_t technical_employee[10][10], storage_employee, loading_employee;
 
-pthread_mutex_t carton_box_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t carton_box_threshold_cv = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t loading_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_cond_t loading_threshold_cv = PTHREAD_COND_INITIALIZER;
 
 pthread_mutex_t count_mutex[10] = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER};
 pthread_cond_t count_threshold_cv[10][2] = {{PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}, {PTHREAD_COND_INITIALIZER, PTHREAD_COND_INITIALIZER}};
@@ -32,9 +32,17 @@ void *execute_step(struct technical *data)
     int line = data->line;
 
     printf("line %d , technical %d created\n", line, technical);
-    int k = 10;
+    int k = 20;
     while (k--)
     {
+        if (laptops_in_storage_room >= MAXTHRESHOLD)
+        {
+            printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+            while (laptops_in_storage_room >= MINTHRESHOLD)
+                ;
+
+        }
+
         if (pthread_mutex_lock(&count_mutex[line]) == -1)
         {
             perror("error");
@@ -59,37 +67,56 @@ void *execute_step(struct technical *data)
         {
             printf("line %d , technical %d put the laptop in the carton box\n", line, technical);
             printf("laptops_in_carton_box = %d - laptops_in_storage_room = %d\n", ++laptops_in_carton_box, laptops_in_storage_room);
-            
+
             steps_finished[line] = 0;
             sleep(1);
 
-            if (laptops_in_carton_box >= 10)
-            {
-                pthread_cond_signal(&carton_box_threshold_cv);
-                while (laptops_in_carton_box >= 10)
-                    ;
-                //sleep(2);
-            }
+            while (laptops_in_carton_box >= 10)
+                ;
+            //sleep(2);
+
             pthread_cond_signal(&count_threshold_cv[line][1]);
         }
 
         pthread_mutex_unlock(&count_mutex[line]);
     }
 }
-void *collect_filled_carton(struct technical *data)
+void *collect_filled_carton(void *data)
 {
     printf("Storage Employee Created!\n");
     while (1)
+        if (laptops_in_carton_box >= 10)
+        {
+
+            printf("The Storage Employee collecting the filled carton and placing it in the storage room...\n");
+            sleep(2);
+            printf("The Storage Employee Finished his task, laptops_in_storage_room = %d\n", (laptops_in_storage_room+10));
+            laptops_in_storage_room += 10;
+
+            //pthread_cond_broadcast(&loading_threshold_cv);
+            laptops_in_carton_box = 0;
+            
+        }
+}
+
+void *load_truck(int *data)
+{
+    int me = *((int *)data);
+    printf("Loading Employee No.%d Created!\n", me);
+    while (1)
     {
-        pthread_mutex_lock(&carton_box_mutex);
-        pthread_cond_wait(&carton_box_threshold_cv, &carton_box_mutex);
-        printf("The Storage Employee collecting the filled carton and placing it in the storage room...\n");
-        sleep(2);
-        laptops_in_storage_room+=10;
-        laptops_in_carton_box = 0;
-        printf("The Storage Employee Finished his task\n");
-        
-        pthread_mutex_unlock(&carton_box_mutex);
+        if (pthread_mutex_lock(&loading_mutex) == -1)
+        {
+            perror("error");
+        }
+        //pthread_cond_wait(&loading_threshold_cv, &loading_mutex);
+        if (laptops_in_storage_room > 0)
+        {
+            laptops_in_storage_room--;
+            printf("Loading Emp No.%d loads 1 Laptop, laptops_in_storage_room = %d\n", me, laptops_in_storage_room);
+            sleep(6);
+        }
+        pthread_mutex_unlock(&loading_mutex);
     }
 }
 /* like any C program, program's execution begins in main */
@@ -139,7 +166,7 @@ int main(int argc, char *argv[])
             }
             if (pthread_create(&technical_employee[i][j], &tattr, (void *)execute_step, (void *)&x) != 0)
             {
-                perror("failed to create technical");
+                perror("failed to create technical_employee thread");
             }
 
             usleep(2500);
@@ -147,7 +174,15 @@ int main(int argc, char *argv[])
     int a = 1;
     if (pthread_create(&storage_employee, NULL, (void *)collect_filled_carton, (void *)&a) != 0)
     {
-        perror("failed to create thread");
+        perror("failed to create storage_employee thread");
+    }
+    for (int i = 0; i < numOfLoadingEmployees; i++)
+    {
+        if (pthread_create(&loading_employee, NULL, (void *)load_truck, (void *)&i) != 0)
+        {
+            perror("failed to create loading_employee thread");
+        }
+        usleep(2500);
     }
     sleep(1);
     for (int i = 0; i < 10; i++)
