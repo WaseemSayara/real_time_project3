@@ -3,8 +3,8 @@
 #include <unistd.h>
 #include <sched.h>
 
-#define MAXTHRESHOLD 30
-#define MINTHRESHOLD 20
+#define MAXTHRESHOLD 16
+#define MINTHRESHOLD 14
 #define numOfLoadingEmployees 4
 
 pthread_t technical_employee[10][10], storage_employee, loading_employee;
@@ -24,25 +24,6 @@ struct technical
 int steps_finished[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int laptops_in_carton_box, laptops_in_storage_room = 0;
 
-/*
-* Define colors to style the output
-*/
-
-void cyan()
-{
-    printf("\033[0;36m");
-}
-
-void black()
-{
-    printf("\033[0m");
-}
-
-void green()
-{
-    printf("\033[0;32m");
-}
-
 /* function to be executed by the TECHNICAL EMPLOYEE thread */
 void *execute_step(struct technical *data)
 {
@@ -54,12 +35,6 @@ void *execute_step(struct technical *data)
     int k = 20;
     while (k--)
     {
-        if (laptops_in_storage_room >= MAXTHRESHOLD)
-        {
-            //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
-            while (laptops_in_storage_room >= MINTHRESHOLD)
-                ;
-        }
 
         if (pthread_mutex_lock(&count_mutex[line]) == -1)
         {
@@ -84,8 +59,8 @@ void *execute_step(struct technical *data)
         if (steps_finished[line] == 10)
         {
 
-            printf("line %d , technical %d put the laptop in the carton box\n", line, technical);
-            printf("laptops_in_carton_box = %d - laptops_in_storage_room = %d\n", ++laptops_in_carton_box, laptops_in_storage_room);
+            printf("\033[0;36mline %d , technical %d put the laptop in the carton box\n\033[0m", line, technical);
+            printf("\033[0;33mlaptops_in_carton_box = %d\n\033[0m", ++laptops_in_carton_box);
             steps_finished[line] = 0;
             sleep(1);
             pthread_mutex_lock(&cartonbox_mutex);
@@ -95,7 +70,12 @@ void *execute_step(struct technical *data)
             pthread_mutex_unlock(&cartonbox_mutex);
             pthread_cond_signal(&count_threshold_cv[line][1]);
         }
-
+        if (laptops_in_storage_room >= MAXTHRESHOLD)
+        {
+            //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+            while (laptops_in_storage_room >= MINTHRESHOLD)
+                ;
+        }
         pthread_mutex_unlock(&count_mutex[line]);
     }
 }
@@ -110,11 +90,9 @@ void *collect_filled_carton(void *data)
         if (laptops_in_carton_box >= 10)
         {
 
-            green();
-            printf("The Storage Employee collecting the filled carton and placing it in the storage room...\n");
+            printf("\033[0;32mThe Storage Employee collecting the filled carton and placing it in the storage room...\n\033[0m");
             sleep(2);
-            printf("The Storage Employee Finished his task, laptops_in_storage_room = %d\n", (laptops_in_storage_room + 10));
-            black();
+            printf("\033[0;32mThe Storage Employee Finished his task, laptops_in_storage_room = %d\n\033[0m", (laptops_in_storage_room + 10));
 
             laptops_in_storage_room += 10;
 
@@ -133,18 +111,21 @@ void *load_truck(int *data)
     printf("Loading Employee No.%d Created!\n", me);
     while (1)
     {
-        while (laptops_in_storage_room == 0);
-        
-            pthread_mutex_lock(&loading_mutex);
+
+        pthread_mutex_lock(&loading_mutex);
+        if (laptops_in_storage_room > 0)
+        {
             pthread_mutex_lock(&storage_mutex);
+
             laptops_in_storage_room--;
 
-            cyan();
-            printf("Loading Emp No.%d loads 1 Laptop, laptops_in_storage_room = %d\n", me, laptops_in_storage_room);
-            black();
+            //cyan();
+            printf("\033[0;31mLoading Emp No.%d loads 1 Laptop, laptops_in_storage_room = %d, laptops_in_carton_box = %d\n\033[0m", me, laptops_in_storage_room, laptops_in_carton_box);
+            //white();
             pthread_mutex_unlock(&storage_mutex);
             sleep(6);
-            pthread_mutex_unlock(&loading_mutex);
+        }
+        pthread_mutex_unlock(&loading_mutex);
         sleep(1);
     }
 }
@@ -213,6 +194,7 @@ int main(int argc, char *argv[])
         }
         usleep(2500);
     }
+    printf("-------------------------------\n");
     sleep(1);
     for (int i = 0; i < 10; i++)
         pthread_cond_signal(&count_threshold_cv[i][1]);
