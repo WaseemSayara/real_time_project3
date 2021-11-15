@@ -9,7 +9,7 @@
 
 pthread_t technical_employee[10][10], storage_employee, loading_employee;
 
-pthread_mutex_t loading_mutex = PTHREAD_MUTEX_INITIALIZER;
+pthread_mutex_t loading_mutex, cartonbox_mutex, storage_mutex = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t loading_threshold_cv = PTHREAD_COND_INITIALIZER;
 
 pthread_mutex_t count_mutex[10] = {PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER, PTHREAD_MUTEX_INITIALIZER};
@@ -24,7 +24,26 @@ struct technical
 int steps_finished[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 int laptops_in_carton_box, laptops_in_storage_room = 0;
 
-/* function to be executed by the new thread */
+/*
+* Define colors to style the output
+*/
+
+void cyan()
+{
+    printf("\033[0;36m");
+}
+
+void black()
+{
+    printf("\033[0m");
+}
+
+void green()
+{
+    printf("\033[0;32m");
+}
+
+/* function to be executed by the TECHNICAL EMPLOYEE thread */
 void *execute_step(struct technical *data)
 {
 
@@ -37,10 +56,9 @@ void *execute_step(struct technical *data)
     {
         if (laptops_in_storage_room >= MAXTHRESHOLD)
         {
-            printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+            //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
             while (laptops_in_storage_room >= MINTHRESHOLD)
                 ;
-
         }
 
         if (pthread_mutex_lock(&count_mutex[line]) == -1)
@@ -65,58 +83,69 @@ void *execute_step(struct technical *data)
         steps_finished[line]++;
         if (steps_finished[line] == 10)
         {
+
             printf("line %d , technical %d put the laptop in the carton box\n", line, technical);
             printf("laptops_in_carton_box = %d - laptops_in_storage_room = %d\n", ++laptops_in_carton_box, laptops_in_storage_room);
-
             steps_finished[line] = 0;
             sleep(1);
-
+            pthread_mutex_lock(&cartonbox_mutex);
             while (laptops_in_carton_box >= 10)
                 ;
             //sleep(2);
-
+            pthread_mutex_unlock(&cartonbox_mutex);
             pthread_cond_signal(&count_threshold_cv[line][1]);
         }
 
         pthread_mutex_unlock(&count_mutex[line]);
     }
 }
+
+/* function to be executed by the STORAGE EMPLOYEE thread */
 void *collect_filled_carton(void *data)
 {
     printf("Storage Employee Created!\n");
     while (1)
+    {
+        pthread_mutex_lock(&storage_mutex);
         if (laptops_in_carton_box >= 10)
         {
 
+            green();
             printf("The Storage Employee collecting the filled carton and placing it in the storage room...\n");
             sleep(2);
-            printf("The Storage Employee Finished his task, laptops_in_storage_room = %d\n", (laptops_in_storage_room+10));
+            printf("The Storage Employee Finished his task, laptops_in_storage_room = %d\n", (laptops_in_storage_room + 10));
+            black();
+
             laptops_in_storage_room += 10;
 
             //pthread_cond_broadcast(&loading_threshold_cv);
             laptops_in_carton_box = 0;
-            
         }
+        pthread_mutex_unlock(&storage_mutex);
+        sleep(1);
+    }
 }
 
+/* function to be executed by the LOADING EMPLOYEE thread */
 void *load_truck(int *data)
 {
     int me = *((int *)data);
     printf("Loading Employee No.%d Created!\n", me);
     while (1)
     {
-        if (pthread_mutex_lock(&loading_mutex) == -1)
-        {
-            perror("error");
-        }
-        //pthread_cond_wait(&loading_threshold_cv, &loading_mutex);
-        if (laptops_in_storage_room > 0)
-        {
+        while (laptops_in_storage_room == 0);
+        
+            pthread_mutex_lock(&loading_mutex);
+            pthread_mutex_lock(&storage_mutex);
             laptops_in_storage_room--;
+
+            cyan();
             printf("Loading Emp No.%d loads 1 Laptop, laptops_in_storage_room = %d\n", me, laptops_in_storage_room);
+            black();
+            pthread_mutex_unlock(&storage_mutex);
             sleep(6);
-        }
-        pthread_mutex_unlock(&loading_mutex);
+            pthread_mutex_unlock(&loading_mutex);
+        sleep(1);
     }
 }
 /* like any C program, program's execution begins in main */
