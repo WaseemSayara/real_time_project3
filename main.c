@@ -1,67 +1,11 @@
-#include <stdio.h>   /* standard I/O routines                 */
-#include <pthread.h> /* pthread functions and data structures */
-#include <unistd.h>
-#include <sched.h>
-#include <time.h>
+/*
+* Laptop-manufacturing factory
+*/
 
-#define MAXTHRESHOLD 16
-#define MINTHRESHOLD 14
-#define numOfLoadingEmployees 0
-#define numOfLines 10
-#define numOfSteps 10
-#define numOfTrucks 4
-#define capacityOfTruck 10
-#define TruckTrevelTime 10
-
-pthread_t technical_employee[numOfLines][numOfSteps], storage_employee, loading_employee;
-
-pthread_mutex_t loading_mutex, cartonbox_mutex, storage_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t loading_threshold_cv = PTHREAD_COND_INITIALIZER;
-
-pthread_mutex_t count_mutex[numOfLines] = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t count_threshold_cv[numOfLines][6] = PTHREAD_COND_INITIALIZER;
-time_t current_time;
-
-unsigned int ids[numOfLines] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-unsigned int counts[numOfLines] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-pthread_mutex_t get_laptop = PTHREAD_MUTEX_INITIALIZER;
-
-struct List *lists[numOfLines];
-
-typedef struct technical
-{
-    int line;
-    int worker;
-} technical;
-
-typedef struct laptop
-{
-    unsigned int laptop_id;
-    int finished_steps;
-    int visited_techs[5];
-    pthread_mutex_t laptop_mutex;
-} laptop;
-
-struct Node
-{
-    laptop my_laptop;
-    struct Node *next;
-};
-
-// The List, front stores the front node of LL and rear stores the
-// last node of LL
-struct List
-{
-    struct Node *front, *rear;
-};
-
-int steps_finished[numOfLines] = {0};
-int laptops_in_carton_box, laptops_in_storage_room, current_truck = 0;
-
-int trucks[4];
-time_t trucks_time[4];
+#include "local.h"
 
 struct Node *newNode(laptop);
+
 void print_list(struct List *);
 void add_node(struct List *, laptop);
 laptop get_free_laptop(struct List *, int);
@@ -76,15 +20,20 @@ laptop no_free;
 /* function to be executed by the TECHNICAL EMPLOYEE thread */
 void *execute_step(technical *data)
 {
-
+    // Get thread line and worker number
     int technical = data->worker;
     int line = data->line;
 
     printf("line %d , technical %d created\n", line, technical);
+
+    // ################################ K value !?!? #######################################
     int k = 220;
+
     while (k--)
     {
-
+        /*
+        * The first technical worker choose the line work for laptop
+        */
         if (technical == 0)
         {
             if (counts[line] < 10)
@@ -349,6 +298,10 @@ int main(int argc, char *argv[])
     }
 
     printf("hello world\n");
+
+    /*
+    * Reduce codue using array of laptop struct !!!!!!!!!!!!!!!!!!
+    */
 
     laptop lap1;
     lap1.laptop_id = 1;
