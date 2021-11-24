@@ -5,7 +5,6 @@
 #include "local.h"
 
 struct Node *newNode(laptop);
-
 void print_list(struct List *);
 void add_node(struct List *, laptop);
 laptop get_free_laptop(struct List *, int);
@@ -14,7 +13,6 @@ void remove_laptop(struct List *, int);
 struct List *createList();
 laptop get_laptop_with_id(struct List *, int);
 laptop get_free_laptop_with_steps(struct List *, int);
-
 laptop no_free;
 
 /* function to be executed by the TECHNICAL EMPLOYEE thread */
@@ -138,10 +136,10 @@ void *execute_step(technical *data)
         }
         sleep(1);
         //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
-        if (laptops_in_storage_room >= MAXTHRESHOLD)
+        if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
         {
             //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
-            while (laptops_in_storage_room >= MINTHRESHOLD)
+            while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
                 sleep(1);
         }
     }
@@ -186,10 +184,10 @@ void *execute_step(technical *data)
     //         if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
     //             perror("error");
     //     }
-    // if (laptops_in_storage_room >= MAXTHRESHOLD)
+    // if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
     // {
     //     //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
-    //     while (laptops_in_storage_room >= MINTHRESHOLD)
+    //     while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
     //         sleep(1);
     // }
 
@@ -221,7 +219,7 @@ void *collect_filled_carton(void *data)
         {
             printf("\033[0;32mThe Storage Employee collecting..\n\033[0m");
             laptops_in_carton_box -= numOfLines;
-            sleep(2);
+            sleep(StorageEmpPeriod);
             printf("\033[0;32mThe Storage Employee Finished, laptops_in_storage_room = %d\n\033[0m", (laptops_in_storage_room + numOfLines));
             if (pthread_mutex_lock(&storage_mutex) != 0)
                 perror("error");
@@ -242,10 +240,12 @@ void *load_truck(int *data)
     printf("Loading Employee No.%d Created!\n", me);
     while (1)
     {
-        pthread_mutex_lock(&loading_mutex);
+        if (pthread_mutex_lock(&loading_mutex) != 0)
+            perror("error");
         if (laptops_in_storage_room > 0)
         {
-            pthread_mutex_lock(&storage_mutex);
+            if (pthread_mutex_lock(&storage_mutex) != 0)
+                perror("error");
             if (trucks[current_truck] == capacityOfTruck)
             {
                 printf("\033[0;36mTruck No.%d is full\n\033[0m", current_truck);
@@ -262,6 +262,7 @@ void *load_truck(int *data)
             {
                 laptops_in_storage_room--;
                 trucks[current_truck]++;
+                exportedLaptops++;
                 printf("\033[0;35mLoading Emp No.%d loading, storage_room = %d, carton_box = %d\n\033[0m", me, laptops_in_storage_room, laptops_in_carton_box);
                 printf("\033[0;32mTruck No.%d has %d laptops now\n\033[0m", current_truck, trucks[current_truck]);
                 if (trucks[current_truck] == capacityOfTruck)
@@ -272,15 +273,66 @@ void *load_truck(int *data)
                     current_truck = (current_truck + 1) % numOfTrucks;
                 }
             }
-            pthread_mutex_unlock(&storage_mutex);
+            if (pthread_mutex_unlock(&storage_mutex) != 0)
+                perror("error");
         }
-        pthread_mutex_unlock(&loading_mutex);
+        if (pthread_mutex_unlock(&loading_mutex) != 0)
+            perror("error");
+        sleep(10);
+    }
+}
+void *calculate_profit(int *data)
+{
+    while (1)
+    {
+        printf("Calculating..\n\n\n\n\n\n");
+        expenses = (exportedLaptops * CostFAB) + SalaryCEO + SalaryHR +
+                   (SalaryT * 10 * numOfLines) + SalaryS +
+                   (SalaryL * numOfLoadingEmployees) +
+                   (SalaryU * numOfTrucks) + (SalaryA * 0);
+        gains = exportedLaptops * PriceSELL;
+        printf("Profit: %d\n", gains-expenses);
+        if ((gains - expenses) < PROFITMINTHRESHOLD){
+            printf("Suspend a Line!\n\n");
+            numOfLines--;
+            }
+        if ((gains - expenses) > PROFITMAXTHRESHOLD && numOfLines != OriginalnumOfLines){
+            printf("Cancel one Suspended Line!\n\n");
+            numOfLines++;
+            }
+
+
         sleep(10);
     }
 }
 /* like any C program, program's execution begins in main */
 int main(int argc, char *argv[])
 {
+
+    char tmp[20];
+    FILE *arguments;
+
+    arguments = fopen("arguments.txt", "r");
+    fscanf(arguments, "%s %d\n", &tmp, &STORAGEMAXTHRESHOLD);
+    fscanf(arguments, "%s %d\n", &tmp, &STORAGEMINTHRESHOLD);
+    fscanf(arguments, "%s %d\n", &tmp, &StorageEmpPeriod);
+    fscanf(arguments, "%s %d\n", &tmp, &numOfLoadingEmployees);
+    fscanf(arguments, "%s %d\n", &tmp, &capacityOfTruck);
+    fscanf(arguments, "%s %d\n", &tmp, &TruckTrevelTime);
+    fscanf(arguments, "%s %d\n", &tmp, &PROFITCEIL);
+    fscanf(arguments, "%s %d\n", &tmp, &PROFITMAXTHRESHOLD);
+    fscanf(arguments, "%s %d\n", &tmp, &PROFITMINTHRESHOLD);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryCEO);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryHR);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryT);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryS);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryL);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryU);
+    fscanf(arguments, "%s %d\n", &tmp, &SalaryA);
+    fscanf(arguments, "%s %d\n", &tmp, &CostFAB);
+    fscanf(arguments, "%s %d\n", &tmp, &PriceSELL);
+    fclose(arguments);
+    numOfLines = OriginalnumOfLines;
 
     int ret;
     no_free.laptop_id = -1;
@@ -404,14 +456,19 @@ int main(int argc, char *argv[])
         }
         usleep(2500);
     }
+    if (pthread_create(&accountant, NULL, (void *)calculate_profit, (void *)&a) != 0)
+    {
+        perror("failed to create storage_employee thread");
+    }
     // printf("-------------------------------\n");
     // sleep(1);
     // for (int i = 0; i < numOfLines; i++)
     //     pthread_cond_signal(&count_threshold_cv[i][0]);
-
-    sleep(200);
+    while (numOfLines >= (OriginalnumOfLines / (float)2) && (gains - expenses) < PROFITCEIL)
+        ;
+    //sleep(200);
     // printf("thread ended with status\n");
-
+    printf("END!!!!!!!!!!!!!!!!!!!\n\n\n\n\n\n");
     /* NOT REACHED */
     return 0;
 }
@@ -553,7 +610,8 @@ int return_laptop(struct List *l, laptop edited_laptop)
         if (tmp->my_laptop.laptop_id == edited_laptop.laptop_id)
         {
             tmp->my_laptop = edited_laptop;
-            pthread_mutex_unlock(&tmp->my_laptop.laptop_mutex);
+            if (pthread_mutex_unlock(&tmp->my_laptop.laptop_mutex) != 0)
+                perror("error");
             return 0;
         }
         else
@@ -577,7 +635,8 @@ void remove_laptop(struct List *l, int id)
     if (temp->my_laptop.laptop_id == id)
     {
         l->front = temp->next;
-        pthread_mutex_unlock(&temp->my_laptop.laptop_mutex);
+        if (pthread_mutex_unlock(&temp->my_laptop.laptop_mutex) != 0)
+            perror("error");
         free(temp);
         return;
     }
@@ -589,7 +648,8 @@ void remove_laptop(struct List *l, int id)
         {
             temp2 = temp->next;
             temp->next = temp2->next;
-            pthread_mutex_unlock(&temp2->my_laptop.laptop_mutex);
+            if (pthread_mutex_unlock(&temp2->my_laptop.laptop_mutex) != 0)
+                perror("error");
             if (temp2->next == NULL)
             {
                 l->rear = temp;
