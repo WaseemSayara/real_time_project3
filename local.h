@@ -5,8 +5,8 @@
 #include <time.h>
 
 #define MAXTHRESHOLD 16
-#define MINTHRESHOLD 14
-#define numOfLoadingEmployees 0
+#define MINTHRESHOLD 5
+#define numOfLoadingEmployees 5
 #define numOfLines 10
 #define numOfSteps 10
 #define numOfTrucks 4
@@ -58,5 +58,5 @@ struct List
 int steps_finished[numOfLines] = {0};
 int laptops_in_carton_box, laptops_in_storage_room, current_truck = 0;
 
-int trucks[4];
-time_t trucks_time[4];
+int trucks[numOfTrucks];
+time_t trucks_time[numOfTrucks];

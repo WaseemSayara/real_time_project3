@@ -38,7 +38,7 @@ void *execute_step(technical *data)
         {
             if (counts[line] < 10)
             {
-                //todo: check the length of the list ( must not exceed 10)
+                //TODO: check the length of the list ( must not exceed 10)
                 laptop new_laptop;
                 unsigned int id = line * 10000 + ids[line] + 1;
                 new_laptop.laptop_id = id;
@@ -59,7 +59,7 @@ void *execute_step(technical *data)
                     //step time
                     sleep(1);
                     new_laptop.finished_steps++;
-                    printf("\033[0;32m line %d, technical %d, laptopd id: %d, finished step: %d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                    printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
                     return_laptop(lists[line], new_laptop);
                 }
                 else
@@ -79,7 +79,7 @@ void *execute_step(technical *data)
                 //step time
                 sleep(1);
                 new_laptop.finished_steps++;
-                printf("line %d, technical %d, laptopd id: %d, finished step: %d\n", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
                 return_laptop(lists[line], new_laptop);
             }
             else
@@ -91,38 +91,37 @@ void *execute_step(technical *data)
         else
         {
             laptop new_laptop;
-            pthread_mutex_lock(&get_laptop);
+            if (pthread_mutex_lock(&get_laptop) != 0)
+                perror("error");
             new_laptop = get_free_laptop(lists[line], technical);
-            pthread_mutex_unlock(&get_laptop);
+            if (pthread_mutex_unlock(&get_laptop) != 0)
+                perror("error");
             if (new_laptop.laptop_id != -1)
             {
                 //step time
                 sleep(rand() % 5);
-                int tmp = new_laptop.finished_steps;
-                int index = tmp - 5;
-                printf("\033[0;34m line %d, technical %d, laptopd id: %d, current step: %d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                printf("\033[0;34mline \033[0;32m%d\033[0;34m, technical \033[0;31m%d\033[0;34m, laptop id: \033[0;32m%5d\033[0;34m, current  step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                int index = new_laptop.finished_steps - 5;
                 new_laptop.visited_techs[index] = technical;
                 print_array(new_laptop);
                 new_laptop.finished_steps = (new_laptop.finished_steps) + 1;
-                printf("\033[0;33m line %d, technical %d, laptopd id: %d, finished step: %d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
                 if (new_laptop.finished_steps == numOfSteps)
                 {
-
                     printf("\033[0;36mline %d , technical %d put the laptop %d in the carton box\n\033[0m", line, technical, new_laptop.laptop_id);
                     steps_finished[line] = 0;
-                    sleep(1);
+
                     if (pthread_mutex_lock(&cartonbox_mutex) != 0)
                         perror("error");
 
                     // while (laptops_in_carton_box >= numOfLines)
                     //     ;
-                    printf("\033[0;33mlaptops_in_carton_box = %d\n\033[0m", ++laptops_in_carton_box);
-
+                    printf("\033[0;31m*********** laptops_in_carton_box = %d ***********\n\033[0m", ++laptops_in_carton_box);
                     if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
                         perror("error");
-
-                    if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
-                        perror("error");
+                    sleep(1);
+                    // if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
+                    //     perror("error");
                     remove_laptop(lists[line], new_laptop.laptop_id);
                     counts[line]--;
                 }
@@ -138,6 +137,13 @@ void *execute_step(technical *data)
             }
         }
         sleep(1);
+        //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
+        if (laptops_in_storage_room >= MAXTHRESHOLD)
+        {
+            //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+            while (laptops_in_storage_room >= MINTHRESHOLD)
+                sleep(1);
+        }
     }
 
     // -----------------------------------------------------------------------------
@@ -180,12 +186,12 @@ void *execute_step(technical *data)
     //         if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
     //             perror("error");
     //     }
-    //     if (laptops_in_storage_room >= MAXTHRESHOLD)
-    //     {
-    //         //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
-    //         while (laptops_in_storage_room >= MINTHRESHOLD)
-    //             sleep(1);
-    //     }
+    // if (laptops_in_storage_room >= MAXTHRESHOLD)
+    // {
+    //     //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
+    //     while (laptops_in_storage_room >= MINTHRESHOLD)
+    //         sleep(1);
+    // }
 
     //     if (technical < 4)
     //     {
@@ -209,22 +215,22 @@ void *collect_filled_carton(void *data)
     printf("Storage Employee Created!\n");
     while (1)
     {
-        pthread_mutex_lock(&storage_mutex);
-        pthread_mutex_lock(&cartonbox_mutex);
+        if (pthread_mutex_lock(&cartonbox_mutex) != 0)
+            perror("error");
         if (laptops_in_carton_box >= numOfLines)
         {
-
-            printf("\033[0;32mThe Storage Employee collecting the filled carton and placing it in the storage room...\n\033[0m");
+            printf("\033[0;32mThe Storage Employee collecting..\n\033[0m");
+            laptops_in_carton_box -= numOfLines;
             sleep(2);
-            printf("\033[0;32mThe Storage Employee Finished his task, laptops_in_storage_room = %d\n\033[0m", (laptops_in_storage_room + numOfLines));
-
+            printf("\033[0;32mThe Storage Employee Finished, laptops_in_storage_room = %d\n\033[0m", (laptops_in_storage_room + numOfLines));
+            if (pthread_mutex_lock(&storage_mutex) != 0)
+                perror("error");
             laptops_in_storage_room += numOfLines;
-
-            //pthread_cond_broadcast(&loading_threshold_cv);
-            laptops_in_carton_box = 0;
+            if (pthread_mutex_unlock(&storage_mutex) != 0)
+                perror("error");
         }
-        pthread_mutex_unlock(&cartonbox_mutex);
-        pthread_mutex_unlock(&storage_mutex);
+        if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
+            perror("error");
         sleep(1);
     }
 }
@@ -240,30 +246,24 @@ void *load_truck(int *data)
         if (laptops_in_storage_room > 0)
         {
             pthread_mutex_lock(&storage_mutex);
-
             if (trucks[current_truck] == capacityOfTruck)
             {
                 printf("\033[0;36mTruck No.%d is full\n\033[0m", current_truck);
-
                 current_time = time(NULL);
                 printf("\033[0;36mTruck No.%d is full, current time is %ld and the truck time is %ld \n\033[0m", current_truck, current_time, trucks_time[current_truck]);
                 int delta_time = current_time - trucks_time[current_truck];
                 printf("\033[0;36mTruck No.%d is full, delats is %d and the max is %d \n\033[0m", current_truck, delta_time, (int)TruckTrevelTime);
-
                 if (delta_time >= (int)TruckTrevelTime)
                 {
                     trucks[current_truck] = 0;
                 }
             }
-
             if (trucks[current_truck] < capacityOfTruck)
             {
                 laptops_in_storage_room--;
                 trucks[current_truck]++;
-
-                printf("\033[0;31mLoading Emp No.%d loads 1 Laptop, laptops_in_storage_room = %d, laptops_in_carton_box = %d\n\033[0m", me, laptops_in_storage_room, laptops_in_carton_box);
-                printf("\033[0;31mTruck No.%d has %d laptops now\n\033[0m", current_truck, trucks[current_truck]);
-
+                printf("\033[0;35mLoading Emp No.%d loading, storage_room = %d, carton_box = %d\n\033[0m", me, laptops_in_storage_room, laptops_in_carton_box);
+                printf("\033[0;32mTruck No.%d has %d laptops now\n\033[0m", current_truck, trucks[current_truck]);
                 if (trucks[current_truck] == capacityOfTruck)
                 {
                     printf("\033[0;32mTruck No.%d is full and going to unload\n\033[0m", current_truck);
@@ -272,11 +272,10 @@ void *load_truck(int *data)
                     current_truck = (current_truck + 1) % numOfTrucks;
                 }
             }
-
             pthread_mutex_unlock(&storage_mutex);
         }
         pthread_mutex_unlock(&loading_mutex);
-        sleep(6);
+        sleep(10);
     }
 }
 /* like any C program, program's execution begins in main */
@@ -392,19 +391,19 @@ int main(int argc, char *argv[])
         }
     }
 
-    // int a = 1;
-    // if (pthread_create(&storage_employee, NULL, (void *)collect_filled_carton, (void *)&a) != 0)
-    // {
-    //     perror("failed to create storage_employee thread");
-    // }
-    // for (int i = 0; i < numOfLoadingEmployees; i++)
-    // {
-    //     if (pthread_create(&loading_employee, NULL, (void *)load_truck, (void *)&i) != 0)
-    //     {
-    //         perror("failed to create loading_employee thread");
-    //     }
-    //     usleep(2500);
-    // }
+    int a = 1;
+    if (pthread_create(&storage_employee, NULL, (void *)collect_filled_carton, (void *)&a) != 0)
+    {
+        perror("failed to create storage_employee thread");
+    }
+    for (int i = 0; i < numOfLoadingEmployees; i++)
+    {
+        if (pthread_create(&loading_employee, NULL, (void *)load_truck, (void *)&i) != 0)
+        {
+            perror("failed to create loading_employee thread");
+        }
+        usleep(2500);
+    }
     // printf("-------------------------------\n");
     // sleep(1);
     // for (int i = 0; i < numOfLines; i++)
@@ -440,7 +439,7 @@ laptop get_free_laptop(struct List *l, int tech_id)
     // If List is empty, return NULL.
     if (l->front == NULL)
     {
-        printf("nul;lllllllllllllllll;\n");
+        printf("NULL;\n");
         return;
     }
     struct Node *tmp = l->front;
@@ -461,7 +460,7 @@ laptop get_free_laptop(struct List *l, int tech_id)
             {
                 if (pthread_mutex_trylock(&tmp->my_laptop.laptop_mutex) == 0)
                 {
-                    printf(" tech %d accessed laptop %d with current steps %d =============\n", tech_id, tmp->my_laptop.laptop_id, tmp->my_laptop.finished_steps);
+                    printf("\033[0;33mTechnical %d accessed laptop %5d with current steps: %d\033[0m\n", tech_id, tmp->my_laptop.laptop_id, tmp->my_laptop.finished_steps);
                     return tmp->my_laptop;
                 }
                 // else
@@ -621,8 +620,10 @@ struct List *createList()
 
 void print_array(laptop l)
 {
+    printf("--------------------------------------------------\n");
     for (int i = 0; i < 5; i++)
     {
-        printf("(( for laptop %d the array is in index %d = %d ))\n", l.laptop_id, i, l.visited_techs[i]);
+        printf("|| for laptop %5d the array is in index %d = %d ||\n", l.laptop_id, i, l.visited_techs[i]);
     }
+    printf("--------------------------------------------------\n");
 }
