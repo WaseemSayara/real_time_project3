@@ -138,7 +138,6 @@ void *execute_step(technical *data)
         //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
         if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
         {
-            //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
             while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
                 sleep(1);
         }
@@ -283,26 +282,28 @@ void *load_truck(int *data)
 }
 void *calculate_profit(int *data)
 {
+    sleep(100);
     while (1)
     {
-        printf("Calculating..\n\n\n\n\n\n");
+        printf("Calculating..\n\n");
         expenses = (exportedLaptops * CostFAB) + SalaryCEO + SalaryHR +
                    (SalaryT * 10 * numOfLines) + SalaryS +
                    (SalaryL * numOfLoadingEmployees) +
                    (SalaryU * numOfTrucks) + (SalaryA * 0);
         gains = exportedLaptops * PriceSELL;
-        printf("Profit: %d\n", gains-expenses);
-        if ((gains - expenses) < PROFITMINTHRESHOLD){
+        printf("Profit: %d\n", gains - expenses);
+        if ((gains - expenses) < PROFITMINTHRESHOLD)
+        {
             printf("Suspend a Line!\n\n");
             numOfLines--;
-            }
-        if ((gains - expenses) > PROFITMAXTHRESHOLD && numOfLines != OriginalnumOfLines){
+        }
+        if ((gains - expenses) > PROFITMAXTHRESHOLD && numOfLines != OriginalnumOfLines)
+        {
             printf("Cancel one Suspended Line!\n\n");
             numOfLines++;
-            }
+        }
 
-
-        sleep(10);
+        sleep(100);
     }
 }
 /* like any C program, program's execution begins in main */
@@ -348,44 +349,44 @@ int main(int argc, char *argv[])
         lists[i] = createList();
     }
 
-    printf("hello world\n");
+    printf("Welcome to Our Factory!\n");
 
     /*
     * Reduce codue using array of laptop struct !!!!!!!!!!!!!!!!!!
     */
 
-    laptop lap1;
-    lap1.laptop_id = 1;
-    lap1.finished_steps = 0;
+    // laptop lap1;
+    // lap1.laptop_id = 1;
+    // lap1.finished_steps = 0;
 
-    struct List *l1;
-    l1 = createList();
-    add_node(l1, lap1);
+    // struct List *l1;
+    // l1 = createList();
+    // add_node(l1, lap1);
 
-    laptop lap2;
-    lap2.laptop_id = 2;
-    lap2.finished_steps = 0;
+    // laptop lap2;
+    // lap2.laptop_id = 2;
+    // lap2.finished_steps = 0;
 
-    add_node(l1, lap2);
+    // add_node(l1, lap2);
 
-    laptop lap3;
-    lap3.laptop_id = 3;
-    lap3.finished_steps = 0;
+    // laptop lap3;
+    // lap3.laptop_id = 3;
+    // lap3.finished_steps = 0;
 
-    add_node(l1, lap3);
+    // add_node(l1, lap3);
 
-    remove_laptop(l1, 3);
+    // remove_laptop(l1, 3);
 
-    print_list(l1);
+    // print_list(l1);
 
-    laptop lap4;
-    lap4.laptop_id = 4;
-    lap4.finished_steps = 0;
+    // laptop lap4;
+    // lap4.laptop_id = 4;
+    // lap4.finished_steps = 0;
 
-    add_node(l1, lap4);
+    // add_node(l1, lap4);
 
-    print_list(l1);
-
+    // print_list(l1);
+    ////////////////
     // laptop tmp = get_free_laptop(l1);
     // printf("the current free is laptop with id = %d with steps = %d\n", tmp.laptop_id, tmp.finished_steps);
     // laptop tmp2 = get_free_laptop(l1);
@@ -438,7 +439,6 @@ int main(int argc, char *argv[])
             {
                 perror("failed to create technical_employee thread");
             }
-
             usleep(2500);
         }
     }
@@ -460,16 +460,10 @@ int main(int argc, char *argv[])
     {
         perror("failed to create storage_employee thread");
     }
-    // printf("-------------------------------\n");
-    // sleep(1);
-    // for (int i = 0; i < numOfLines; i++)
-    //     pthread_cond_signal(&count_threshold_cv[i][0]);
+
     while (numOfLines >= (OriginalnumOfLines / (float)2) && (gains - expenses) < PROFITCEIL)
         ;
-    //sleep(200);
-    // printf("thread ended with status\n");
-    printf("END!!!!!!!!!!!!!!!!!!!\n\n\n\n\n\n");
-    /* NOT REACHED */
+    printf("\n\n\n\n$$$$$$$$$$$$$$$$$$$$$  The END  $$$$$$$$$$$$$$$$$$$$$\n\n\n\n");
     return 0;
 }
 
