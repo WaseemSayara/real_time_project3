@@ -20,7 +20,7 @@ int exportedLaptops = 0;
 pthread_t technical_employee[OriginalnumOfLines][numOfSteps], storage_employee, loading_employee, accountant;
 
 pthread_mutex_t loading_mutex, cartonbox_mutex, storage_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t finised_step_cond[OriginalnumOfLines][4] = PTHREAD_COND_INITIALIZER;
+pthread_cond_t finised_step_cond[OriginalnumOfLines][4];
 pthread_mutex_t finised_step_mutex[OriginalnumOfLines][4] = PTHREAD_MUTEX_INITIALIZER;
 
 pthread_cond_t line_full_cond[OriginalnumOfLines];
