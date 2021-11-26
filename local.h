@@ -4,32 +4,32 @@
 #include <sched.h>
 #include <time.h>
 
-// #define MAXTHRESHOLD 16
-// #define MINTHRESHOLD 5
-// #define numOfLoadingEmployees 5
 #define OriginalnumOfLines 10
 #define numOfSteps 10
 #define numOfTrucks 4
-// #define capacityOfTruck 10
-// #define TruckTrevelTime 10
+
 int STORAGEMAXTHRESHOLD, STORAGEMINTHRESHOLD, StorageEmpPeriod,
-    numOfLoadingEmployees, numOfLines, capacityOfTruck, TruckTrevelTime, 
-    PROFITCEIL, PROFITMAXTHRESHOLD,PROFITMINTHRESHOLD, SalaryCEO, 
-    SalaryHR, SalaryT, SalaryS, SalaryL, SalaryU, SalaryA, SalaryFAB, 
-    SalarySELL, CostFAB, PriceSELL;
-int expenses, gains;
+    numOfLoadingEmployees, numOfLines, capacityOfTruck, TruckTrevelTime,
+    GAINCEIL, PROFITMAXTHRESHOLD, PROFITMINTHRESHOLD, SalaryCEO,
+    SalaryHR, SalaryT, SalaryS, SalaryL, SalaryU, SalaryA, SalaryFAB,
+    SalarySELL, CostFAB, PriceSELL, step_min_time, step_max_time;
+int expenses, gains_this_month, total_gains;
 int exportedLaptops = 0;
 
 pthread_t technical_employee[OriginalnumOfLines][numOfSteps], storage_employee, loading_employee, accountant;
+
 pthread_mutex_t loading_mutex, cartonbox_mutex, storage_mutex = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t loading_threshold_cv = PTHREAD_COND_INITIALIZER;
-pthread_mutex_t count_mutex[OriginalnumOfLines] = PTHREAD_MUTEX_INITIALIZER;
-pthread_cond_t count_threshold_cv[OriginalnumOfLines][6] = PTHREAD_COND_INITIALIZER;
+pthread_cond_t finised_step_cond[OriginalnumOfLines][4] = PTHREAD_COND_INITIALIZER;
+pthread_mutex_t finised_step_mutex[OriginalnumOfLines][4] = PTHREAD_MUTEX_INITIALIZER;
+
+pthread_cond_t line_full_cond[OriginalnumOfLines];
+pthread_mutex_t line_full_mutex[OriginalnumOfLines];
 
 time_t current_time;
 
-unsigned int ids[OriginalnumOfLines] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
-unsigned int counts[OriginalnumOfLines] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
+unsigned int ids[OriginalnumOfLines];
+unsigned int counts[OriginalnumOfLines];
+unsigned int off_line[OriginalnumOfLines];
 pthread_mutex_t get_laptop = PTHREAD_MUTEX_INITIALIZER;
 
 struct List *lists[OriginalnumOfLines];

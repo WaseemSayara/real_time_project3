@@ -22,188 +22,149 @@ void *execute_step(technical *data)
     int technical = data->worker;
     int line = data->line;
 
-    printf("line %d , technical %d created\n", line, technical);
+    srand(pthread_self());
 
-    // ################################ K value !?!? #######################################
-    int k = 220;
-
-    while (k--)
+    while (1)
     {
-        /*
-        * The first technical worker choose the line work for laptop
-        */
-        if (technical == 0)
+        // check if the line is on
+        if (off_line[line] == 0)
         {
-            if (counts[line] < 10)
+            // The first technical worker choose the line work for laptop
+            if (technical == 0)
             {
-                //TODO: check the length of the list ( must not exceed 10)
-                laptop new_laptop;
-                unsigned int id = line * 10000 + ids[line] + 1;
-                new_laptop.laptop_id = id;
-                new_laptop.finished_steps = 0;
-                for (int j = 0; j < 5; j++)
+                pthread_mutex_lock(&line_full_mutex[line]);
+                // check the current created laptops in the this line
+                printf("line %d current count = %d\n", line, counts[line]);
+                if (counts[line] < 10)
                 {
-                    new_laptop.visited_techs[j] = 0;
+                    // create new laptop
+                    laptop new_laptop;
+                    unsigned int id = line * 10000 + ids[line] + 1; // linenumber * 10000 + current id for this line is used to identify laptops
+                    new_laptop.laptop_id = id;
+                    new_laptop.finished_steps = 0;
+                    // make the array of visited steps all 0 at start
+                    for (int j = 0; j < 5; j++)
+                    {
+                        new_laptop.visited_techs[j] = 0;
+                    }
+                    ids[line]++;
+
+                    add_node(lists[line], new_laptop);
+                    counts[line]++;
+                    new_laptop = get_laptop_with_id(lists[line], id);
+
+                    // check if its valid laptop
+                    if (new_laptop.laptop_id != -1)
+                    {
+                        //step time with range ( min to max ) in arguments file
+                        int sleep_time = (rand() % ((step_max_time + 1) - step_min_time)) + step_min_time;
+                        sleep(sleep_time);
+                        new_laptop.finished_steps++;
+                        printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                        // commit changes
+                        return_laptop(lists[line], new_laptop);
+                        pthread_cond_signal(&finised_step_cond[line][technical]);
+                    }
+                    else
+                    {
+                        printf("error got a wronge laptop\n");
+                        exit(1);
+                    }
                 }
+                else
+                {
+                    printf("line %d is full\n", line);
+                    pthread_cond_wait(&line_full_cond[line], &line_full_mutex[line]);
+                    printf("line %d is nott full\n", line);
+                }
+                pthread_mutex_unlock(&line_full_mutex[line]);
+            }
 
-                ids[line]++;
-                add_node(lists[line], new_laptop);
-                counts[line]++;
-                new_laptop = get_laptop_with_id(lists[line], id);
-
-                // check if its valid laptop
+            else if (technical >= 1 && technical <= 4)
+            {
+                laptop new_laptop;
+                // get the laptop with finished steps as his number
+                new_laptop = get_free_laptop_with_steps(lists[line], technical);
                 if (new_laptop.laptop_id != -1)
                 {
                     //step time
-                    sleep(1);
+                    int sleep_time = (rand() % ((step_max_time + 1) - step_min_time)) + step_min_time;
+                    sleep(sleep_time);
                     new_laptop.finished_steps++;
                     printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
                     return_laptop(lists[line], new_laptop);
+                    pthread_cond_signal(&finised_step_cond[line][technical]);
                 }
                 else
                 {
-                    printf("error in got a wronge laptop\n");
-                    exit(1);
+                    pthread_mutex_lock(&finised_step_mutex[line][technical - 1]);
+                    pthread_cond_wait(&finised_step_cond[line][technical - 1], &finised_step_mutex[line][technical - 1]);
                 }
+                pthread_mutex_unlock(&finised_step_mutex[line][technical - 1]);
             }
-        }
 
-        else if (technical >= 1 && technical <= 4)
-        {
-            laptop new_laptop;
-            new_laptop = get_free_laptop_with_steps(lists[line], technical);
-            if (new_laptop.laptop_id != -1)
-            {
-                //step time
-                sleep(1);
-                new_laptop.finished_steps++;
-                printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
-                return_laptop(lists[line], new_laptop);
-            }
             else
             {
-                sleep(1);
+                laptop new_laptop;
+                if (pthread_mutex_lock(&get_laptop) != 0)
+                    perror("error");
+                new_laptop = get_free_laptop(lists[line], technical);
+                if (pthread_mutex_unlock(&get_laptop) != 0)
+                    perror("error");
+                if (new_laptop.laptop_id != -1)
+                {
+                    //step time
+                    int sleep_time = (rand() % ((step_max_time + 1) - step_min_time)) + step_min_time;
+                    sleep(sleep_time);
+                    int index = new_laptop.finished_steps - 5;
+                    new_laptop.visited_techs[index] = technical;
+                    // print_array(new_laptop);
+                    new_laptop.finished_steps = (new_laptop.finished_steps) + 1;
+                    printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                    if (new_laptop.finished_steps == numOfSteps)
+                    {
+                        printf("\033[0;36mline %d , technical %d put the laptop %d in the carton box\n\033[0m", line, technical, new_laptop.laptop_id);
+                        steps_finished[line] = 0;
+
+                        if (pthread_mutex_lock(&cartonbox_mutex) != 0)
+                            perror("error");
+
+                        // while (laptops_in_carton_box >= numOfLines)
+                        //     ;
+                        printf("\033[0;31m*********** laptops_in_carton_box = %d ***********\n\033[0m", ++laptops_in_carton_box);
+                        if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
+                            perror("error");
+                        sleep(1);
+                        // if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
+                        //     perror("error");
+                        remove_laptop(lists[line], new_laptop.laptop_id);
+                        counts[line]--;
+                        pthread_cond_signal(&line_full_cond[line]);
+                    }
+                    else
+                    {
+                        return_laptop(lists[line], new_laptop);
+                    }
+                }
+                else
+                {
+                    // printf("no free from %d\n", technical);
+                    sleep(1);
+                }
+            }
+            sleep(1);
+            //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
+            if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
+            {
+                while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
+                    sleep(1);
             }
         }
-
         else
         {
-            laptop new_laptop;
-            if (pthread_mutex_lock(&get_laptop) != 0)
-                perror("error");
-            new_laptop = get_free_laptop(lists[line], technical);
-            if (pthread_mutex_unlock(&get_laptop) != 0)
-                perror("error");
-            if (new_laptop.laptop_id != -1)
-            {
-                //step time
-                sleep(rand() % 5);
-                printf("\033[0;34mline \033[0;32m%d\033[0;34m, technical \033[0;31m%d\033[0;34m, laptop id: \033[0;32m%5d\033[0;34m, current  step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
-                int index = new_laptop.finished_steps - 5;
-                new_laptop.visited_techs[index] = technical;
-                print_array(new_laptop);
-                new_laptop.finished_steps = (new_laptop.finished_steps) + 1;
-                printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
-                if (new_laptop.finished_steps == numOfSteps)
-                {
-                    printf("\033[0;36mline %d , technical %d put the laptop %d in the carton box\n\033[0m", line, technical, new_laptop.laptop_id);
-                    steps_finished[line] = 0;
-
-                    if (pthread_mutex_lock(&cartonbox_mutex) != 0)
-                        perror("error");
-
-                    // while (laptops_in_carton_box >= numOfLines)
-                    //     ;
-                    printf("\033[0;31m*********** laptops_in_carton_box = %d ***********\n\033[0m", ++laptops_in_carton_box);
-                    if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
-                        perror("error");
-                    sleep(1);
-                    // if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
-                    //     perror("error");
-                    remove_laptop(lists[line], new_laptop.laptop_id);
-                    counts[line]--;
-                }
-                else
-                {
-                    return_laptop(lists[line], new_laptop);
-                }
-            }
-            else
-            {
-                // printf("no free from %d\n", technical);
-                sleep(1);
-            }
-        }
-        sleep(1);
-        //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
-        if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
-        {
-            while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
-                sleep(1);
+            sleep(5);
         }
     }
-
-    // -----------------------------------------------------------------------------
-    //     if (pthread_mutex_lock(&count_mutex[line]) != 0)
-    //         perror("error");
-
-    //     if (technical <= 4)
-    //     {
-    //         if (pthread_cond_wait(&count_threshold_cv[line][technical], &count_mutex[line]) != 0)
-    //             perror("error");
-    //     }
-
-    //     else
-    //     {
-    //         if (pthread_cond_wait(&count_threshold_cv[line][5], &count_mutex[line]) != 0)
-    //             perror("error");
-    //     }
-
-    //     printf("line %d , technical %d\n", line, technical);
-
-    //     // step time
-    //     usleep(1000000);
-    //     steps_finished[line]++;
-    //     if (steps_finished[line] == numOfSteps)
-    //     {
-
-    //         printf("\033[0;36mline %d , technical %d put the laptop in the carton box\n\033[0m", line, technical);
-    //         steps_finished[line] = 0;
-    //         sleep(1);
-    //         if (pthread_mutex_lock(&cartonbox_mutex) != 0)
-    //             perror("error");
-
-    //         // while (laptops_in_carton_box >= numOfLines)
-    //         //     ;
-    //         printf("\033[0;33mlaptops_in_carton_box = %d\n\033[0m", ++laptops_in_carton_box);
-
-    //         if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
-    //             perror("error");
-
-    //         if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
-    //             perror("error");
-    //     }
-    // if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
-    // {
-    //     //printf("XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\n");
-    //     while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
-    //         sleep(1);
-    // }
-
-    //     if (technical < 4)
-    //     {
-    //         if (pthread_cond_signal(&count_threshold_cv[line][technical + 1]) != 0)
-    //             perror("error");
-    //     }
-    //     else if (technical == 4)
-    //     {
-    //         if (pthread_cond_broadcast(&count_threshold_cv[line][5]) != 0)
-    //             perror("error");
-    //     }
-
-    //     if (pthread_mutex_unlock(&count_mutex[line]) != 0)
-    //         perror("error");
-    // }
 }
 
 /* function to be executed by the STORAGE EMPLOYEE thread */
@@ -282,28 +243,32 @@ void *load_truck(int *data)
 }
 void *calculate_profit(int *data)
 {
-    sleep(100);
     while (1)
     {
+        // TODO: add ifs to check if the program ends use the comment below to know the states, let each one retuen a different status and check the status in the main.
+        //    while (numOfLines >= (OriginalnumOfLines / (float)2) && (gains - expenses) < PROFITCEIL);
+        sleep(30);
         printf("Calculating..\n\n");
         expenses = (exportedLaptops * CostFAB) + SalaryCEO + SalaryHR +
                    (SalaryT * 10 * numOfLines) + SalaryS +
                    (SalaryL * numOfLoadingEmployees) +
                    (SalaryU * numOfTrucks) + (SalaryA * 0);
-        gains = exportedLaptops * PriceSELL;
-        printf("Profit: %d\n", gains - expenses);
-        if ((gains - expenses) < PROFITMINTHRESHOLD)
+        gains_this_month = exportedLaptops * PriceSELL;
+        printf("Profit: %d\n", gains_this_month - expenses);
+        if ((gains_this_month - expenses) < PROFITMINTHRESHOLD)
         {
-            printf("Suspend a Line!\n\n");
             numOfLines--;
+            printf("Suspend a Line! ( LINE %d is going DOWN )\n\n", numOfLines);
+            off_line[numOfLines] = 1;
         }
-        if ((gains - expenses) > PROFITMAXTHRESHOLD && numOfLines != OriginalnumOfLines)
+        if ((gains_this_month - expenses) > PROFITMAXTHRESHOLD && numOfLines != OriginalnumOfLines)
         {
-            printf("Cancel one Suspended Line!\n\n");
+            off_line[numOfLines] = 0;
+            printf("Cancel one Suspended Line! ( LINE %d is going UP )\n\n", numOfLines);
             numOfLines++;
         }
-
-        sleep(100);
+        total_gains += gains_this_month;
+        exportedLaptops = 0;
     }
 }
 /* like any C program, program's execution begins in main */
@@ -314,24 +279,25 @@ int main(int argc, char *argv[])
     FILE *arguments;
 
     arguments = fopen("arguments.txt", "r");
-    fscanf(arguments, "%s %d\n", &tmp, &STORAGEMAXTHRESHOLD);
-    fscanf(arguments, "%s %d\n", &tmp, &STORAGEMINTHRESHOLD);
-    fscanf(arguments, "%s %d\n", &tmp, &StorageEmpPeriod);
-    fscanf(arguments, "%s %d\n", &tmp, &numOfLoadingEmployees);
-    fscanf(arguments, "%s %d\n", &tmp, &capacityOfTruck);
-    fscanf(arguments, "%s %d\n", &tmp, &TruckTrevelTime);
-    fscanf(arguments, "%s %d\n", &tmp, &PROFITCEIL);
-    fscanf(arguments, "%s %d\n", &tmp, &PROFITMAXTHRESHOLD);
-    fscanf(arguments, "%s %d\n", &tmp, &PROFITMINTHRESHOLD);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryCEO);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryHR);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryT);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryS);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryL);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryU);
-    fscanf(arguments, "%s %d\n", &tmp, &SalaryA);
-    fscanf(arguments, "%s %d\n", &tmp, &CostFAB);
-    fscanf(arguments, "%s %d\n", &tmp, &PriceSELL);
+    fscanf(arguments, "%s %d\n", tmp, &STORAGEMAXTHRESHOLD);
+    fscanf(arguments, "%s %d\n", tmp, &STORAGEMINTHRESHOLD);
+    fscanf(arguments, "%s %d\n", tmp, &StorageEmpPeriod);
+    fscanf(arguments, "%s %d\n", tmp, &numOfLoadingEmployees);
+    fscanf(arguments, "%s %d\n", tmp, &capacityOfTruck);
+    fscanf(arguments, "%s %d\n", tmp, &TruckTrevelTime);
+    fscanf(arguments, "%s %d\n", tmp, &GAINCEIL);
+    fscanf(arguments, "%s %d\n", tmp, &PROFITMAXTHRESHOLD);
+    fscanf(arguments, "%s %d\n", tmp, &PROFITMINTHRESHOLD);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryCEO);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryHR);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryT);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryS);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryL);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryU);
+    fscanf(arguments, "%s %d\n", tmp, &SalaryA);
+    fscanf(arguments, "%s %d\n", tmp, &CostFAB);
+    fscanf(arguments, "%s %d\n", tmp, &PriceSELL);
+    fscanf(arguments, "%s %d %d\n", tmp, &step_min_time, &step_max_time);
     fclose(arguments);
     numOfLines = OriginalnumOfLines;
 
@@ -354,78 +320,6 @@ int main(int argc, char *argv[])
     /*
     * Reduce codue using array of laptop struct !!!!!!!!!!!!!!!!!!
     */
-
-    // laptop lap1;
-    // lap1.laptop_id = 1;
-    // lap1.finished_steps = 0;
-
-    // struct List *l1;
-    // l1 = createList();
-    // add_node(l1, lap1);
-
-    // laptop lap2;
-    // lap2.laptop_id = 2;
-    // lap2.finished_steps = 0;
-
-    // add_node(l1, lap2);
-
-    // laptop lap3;
-    // lap3.laptop_id = 3;
-    // lap3.finished_steps = 0;
-
-    // add_node(l1, lap3);
-
-    // remove_laptop(l1, 3);
-
-    // print_list(l1);
-
-    // laptop lap4;
-    // lap4.laptop_id = 4;
-    // lap4.finished_steps = 0;
-
-    // add_node(l1, lap4);
-
-    // print_list(l1);
-    ////////////////
-    // laptop tmp = get_free_laptop(l1);
-    // printf("the current free is laptop with id = %d with steps = %d\n", tmp.laptop_id, tmp.finished_steps);
-    // laptop tmp2 = get_free_laptop(l1);
-    // printf("the current free is laptop with id = %d \n", tmp2.laptop_id);
-    // laptop tmp3 = get_free_laptop(l1);
-    // if (tmp3.laptop_id == -1)
-    // {
-    //     printf("no current free laptops = %d \n", tmp3.laptop_id);
-    // }
-    // laptop tmp4 = get_free_laptop(l1);
-    // if (tmp4.laptop_id == -1)
-    // {
-    //     printf("no current free laptops = %d \n", tmp4.laptop_id);
-    // }
-
-    // tmp.finished_steps++;
-    // tmp2.finished_steps++;
-
-    // return_laptop(l1, tmp);
-    // return_laptop(l1, tmp2);
-
-    // laptop tmp5 = get_free_laptop(l1);
-    // if (tmp5.laptop_id == -1)
-    // {
-    //     printf("no current xcvxv free laptops = %d \n", tmp5.laptop_id);
-    // }
-    // else
-    // {
-    //     printf("the current free is laptop with id = %d with steps = %d\n", tmp5.laptop_id, tmp5.finished_steps);
-    // }
-    // laptop tmp6 = get_free_laptop(l1);
-    // if (tmp6.laptop_id == -1)
-    // {
-    //     printf("no current xcvxv free laptops = %d \n", tmp6.laptop_id);
-    // }
-    // else
-    // {
-    //     printf("the current free is laptop with id = %d with steps = %d\n", tmp6.laptop_id, tmp6.finished_steps);
-    // }
 
     for (int i = 0; i < numOfLines; i++)
     {
@@ -461,9 +355,14 @@ int main(int argc, char *argv[])
         perror("failed to create storage_employee thread");
     }
 
-    while (numOfLines >= (OriginalnumOfLines / (float)2) && (gains - expenses) < PROFITCEIL)
-        ;
-    printf("\n\n\n\n$$$$$$$$$$$$$$$$$$$$$  The END  $$$$$$$$$$$$$$$$$$$$$\n\n\n\n");
+    void *status;
+
+    pthread_join(accountant, &status);
+    printf("status is : %d \n", status);
+    
+    // TODO: check why ir ended to print it, and kill all , use status from the line above
+    printf("\n\n TOTAL GAIN IS %d", total_gains);
+    printf("\n\n$$$$$$$$$$$$$$$$$$$$$  The END  $$$$$$$$$$$$$$$$$$$$$\n\n");
     return 0;
 }
 
@@ -491,7 +390,7 @@ laptop get_free_laptop(struct List *l, int tech_id)
     if (l->front == NULL)
     {
         printf("NULL;\n");
-        return;
+        return no_free;
     }
     struct Node *tmp = l->front;
     int visited = 0;
@@ -511,13 +410,8 @@ laptop get_free_laptop(struct List *l, int tech_id)
             {
                 if (pthread_mutex_trylock(&tmp->my_laptop.laptop_mutex) == 0)
                 {
-                    printf("\033[0;33mTechnical %d accessed laptop %5d with current steps: %d\033[0m\n", tech_id, tmp->my_laptop.laptop_id, tmp->my_laptop.finished_steps);
                     return tmp->my_laptop;
                 }
-                // else
-                // {
-                //     perror("cant lock;");
-                // }
             }
         }
         tmp = tmp->next;
@@ -616,7 +510,6 @@ int return_laptop(struct List *l, laptop edited_laptop)
     return -1;
 }
 
-// todo: need fixing
 void remove_laptop(struct List *l, int id)
 {
     // If List is empty, return NULL.
