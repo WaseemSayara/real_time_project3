@@ -65,13 +65,13 @@ void *execute_step(technical *data)
                         return_laptop(lists[line], new_laptop);
                         pthread_cond_signal(&finised_step_cond[line][technical]);
                     }
-                    else
+                    else // There's no vaild laptop
                     {
                         printf("error got a wronge laptop\n");
                         exit(1);
                     }
                 }
-                else
+                else // All lines are full so wait until one of them be empty
                 {
                     printf("line %d is full\n", line);
                     pthread_cond_wait(&line_full_cond[line], &line_full_mutex[line]);
@@ -79,20 +79,23 @@ void *execute_step(technical *data)
                 }
                 pthread_mutex_unlock(&line_full_mutex[line]);
             }
-
+            // Technical from 1 to 4 do their job in order
             else if (technical >= 1 && technical <= 4)
             {
                 laptop new_laptop;
                 // get the laptop with finished steps as his number
                 new_laptop = get_free_laptop_with_steps(lists[line], technical);
+                // Finish work on laptop in a random processing time then increment finished steps
                 if (new_laptop.laptop_id != -1)
                 {
                     //step time
                     int sleep_time = (rand() % ((step_max_time + 1) - step_min_time)) + step_min_time;
                     sleep(sleep_time);
                     new_laptop.finished_steps++;
+                    // Show finished laptop information
                     printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
                     return_laptop(lists[line], new_laptop);
+                    // Thread finish this step and send signal to the other threads in condition
                     pthread_cond_signal(&finised_step_cond[line][technical]);
                 }
                 else
@@ -102,7 +105,8 @@ void *execute_step(technical *data)
                 }
                 pthread_mutex_unlock(&finised_step_mutex[line][technical - 1]);
             }
-
+            // Laptop go to technical workers from 5 to 9
+            // work on the first valid laptop order isn't important
             else
             {
                 laptop new_laptop;
@@ -111,6 +115,7 @@ void *execute_step(technical *data)
                 new_laptop = get_free_laptop(lists[line], technical);
                 if (pthread_mutex_unlock(&get_laptop) != 0)
                     perror("error");
+                // Check if there's laptop wait those technical workers
                 if (new_laptop.laptop_id != -1)
                 {
                     //step time
@@ -121,10 +126,14 @@ void *execute_step(technical *data)
                     // print_array(new_laptop);
                     new_laptop.finished_steps = (new_laptop.finished_steps) + 1;
                     printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+
+                    /*
+                    * Check if the laptop finished all manufacturing steps
+                    */
                     if (new_laptop.finished_steps == numOfSteps)
                     {
                         printf("\033[0;36mline %d , technical %d put the laptop %d in the carton box\n\033[0m", line, technical, new_laptop.laptop_id);
-                        steps_finished[line] = 0;
+                        steps_finished[line] = 0; // Reset manufacturing steps counter
 
                         if (pthread_mutex_lock(&cartonbox_mutex) != 0)
                             perror("error");
@@ -179,11 +188,13 @@ void *collect_filled_carton(void *data)
         {
             printf("\033[0;32mThe Storage Employee collecting..\n\033[0m");
             laptops_in_carton_box -= numOfLines;
-            sleep(StorageEmpPeriod);
+            sleep(StorageEmpPeriod); // Time until the storage employee finish his work
             printf("\033[0;32mThe Storage Employee Finished, laptops_in_storage_room = %d\n\033[0m", (laptops_in_storage_room + numOfLines));
+
             if (pthread_mutex_lock(&storage_mutex) != 0)
                 perror("error");
-            laptops_in_storage_room += numOfLines;
+            laptops_in_storage_room += numOfLines; // Increment storage counter for each laptop stored in the room
+
             if (pthread_mutex_unlock(&storage_mutex) != 0)
                 perror("error");
         }
@@ -198,10 +209,16 @@ void *load_truck(int *data)
 {
     int me = *((int *)data);
     printf("Loading Employee No.%d Created!\n", me);
+    /*
+    * Load laptops to truck
+    */ 
     while (1)
     {
         if (pthread_mutex_lock(&loading_mutex) != 0)
             perror("error");
+        /*
+        * Check if there's a ready laptops in the storage room
+        */
         if (laptops_in_storage_room > 0)
         {
             if (pthread_mutex_lock(&storage_mutex) != 0)
@@ -218,13 +235,18 @@ void *load_truck(int *data)
                     trucks[current_truck] = 0;
                 }
             }
+            /*
+            * Check if there's an empty space into truck or not
+            */
             if (trucks[current_truck] < capacityOfTruck)
             {
                 laptops_in_storage_room--;
                 trucks[current_truck]++;
                 exportedLaptops++;
+                // Print loading information
                 printf("\033[0;35mLoading Emp No.%d loading, storage_room = %d, carton_box = %d\n\033[0m", me, laptops_in_storage_room, laptops_in_carton_box);
                 printf("\033[0;32mTruck No.%d has %d laptops now\n\033[0m", current_truck, trucks[current_truck]);
+                // When truck is full it will unload the laptops
                 if (trucks[current_truck] == capacityOfTruck)
                 {
                     printf("\033[0;32mTruck No.%d is full and going to unload\n\033[0m", current_truck);
@@ -241,12 +263,21 @@ void *load_truck(int *data)
         sleep(10);
     }
 }
+
+/* Function to calculate profits of the manufacturing process */
+
 void *calculate_profit(int *data)
 {
     while (1)
     {
         // TODO: add ifs to check if the program ends use the comment below to know the states, let each one retuen a different status and check the status in the main.
-        //    while (numOfLines >= (OriginalnumOfLines / (float)2) && (gains - expenses) < PROFITCEIL);
+        if(numOfLines >= (OriginalnumOfLines / (float)2)){
+            return 5;
+        }
+        
+        if ((total_gains - expenses) < PROFITCEIL){
+            return 6;
+        }
         sleep(30);
         printf("Calculating..\n\n");
         expenses = (exportedLaptops * CostFAB) + SalaryCEO + SalaryHR +
@@ -277,7 +308,11 @@ int main(int argc, char *argv[])
 
     char tmp[20];
     FILE *arguments;
+    int a = 1;
 
+    /*
+    * Read given values from argument.txt file 
+    */
     arguments = fopen("arguments.txt", "r");
     fscanf(arguments, "%s %d\n", tmp, &STORAGEMAXTHRESHOLD);
     fscanf(arguments, "%s %d\n", tmp, &STORAGEMINTHRESHOLD);
@@ -305,6 +340,7 @@ int main(int argc, char *argv[])
     no_free.laptop_id = -1;
     srand(getpid());
 
+    // Initialize all trucks to 0
     for (int i = 0; i < numOfTrucks; i++)
     {
         trucks[i] = 0;
@@ -317,9 +353,7 @@ int main(int argc, char *argv[])
 
     printf("Welcome to Our Factory!\n");
 
-    /*
-    * Reduce codue using array of laptop struct !!!!!!!!!!!!!!!!!!
-    */
+   
 
     for (int i = 0; i < numOfLines; i++)
     {
@@ -337,7 +371,7 @@ int main(int argc, char *argv[])
         }
     }
 
-    int a = 1;
+    
     if (pthread_create(&storage_employee, NULL, (void *)collect_filled_carton, (void *)&a) != 0)
     {
         perror("failed to create storage_employee thread");
@@ -359,8 +393,16 @@ int main(int argc, char *argv[])
 
     pthread_join(accountant, &status);
     printf("status is : %d \n", status);
-    
+
     // TODO: check why ir ended to print it, and kill all , use status from the line above
+    // Number of lines greater than half of them
+    if(status==5){
+        printf("Number of lines fgreater than half of them\n");
+    }
+
+    if (status==6){
+        printf("Profits reach the required value\n");
+    }
     printf("\n\n TOTAL GAIN IS %d", total_gains);
     printf("\n\n$$$$$$$$$$$$$$$$$$$$$  The END  $$$$$$$$$$$$$$$$$$$$$\n\n");
     return 0;
