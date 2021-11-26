@@ -227,11 +227,11 @@ void *load_truck(int *data)
                 perror("error");
             if (trucks[current_truck] == capacityOfTruck)
             {
-                printf("\033[0;36mTruck No.%d is full\n\033[0m", current_truck);
                 current_time = time(NULL);
                 int delta_time = current_time - trucks_time[current_truck];
                 if (delta_time >= (int)TruckTrevelTime)
                 {
+                    //Truck is Ready..
                     trucks[current_truck] = 0;
                 }
             }
