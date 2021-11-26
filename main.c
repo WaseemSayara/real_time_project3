@@ -289,7 +289,8 @@ void *calculate_profit(int *data)
         {
             printf("Profit This Month: \033[0;31m%d\033[0m\n", month_profit);
         }
-        else{
+        else
+        {
             printf("Profit This Month: %d\n", month_profit);
         }
         if ((gains_this_month - expenses) <= PROFITMINTHRESHOLD)
@@ -309,12 +310,12 @@ void *calculate_profit(int *data)
 
         if (numOfLines < (OriginalnumOfLines / (float)2))
         {
-            return 5;
+            pthread_exit((void *)5);
         }
 
         if (total_gains >= GAINCEIL)
         {
-            return 6;
+            pthread_exit((void *)6);
         }
     }
 }
@@ -407,14 +408,14 @@ int main(int argc, char *argv[])
         perror("failed to create storage_employee thread");
     }
 
-    void *status;
+    int status;
 
-    pthread_join(accountant, &status);
+    pthread_join(accountant, (void *)&status);
 
     // Number of lines greater than half of them
     if (status == 5)
     {
-        printf("Number of lines fgreater than half of them\n");
+        printf("Number of lines are greater than half of them\n");
     }
 
     if (status == 6)
