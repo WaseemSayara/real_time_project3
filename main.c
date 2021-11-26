@@ -24,6 +24,8 @@ void *execute_step(technical *data)
 
     srand(pthread_self());
 
+    sleep(2);
+
     while (1)
     {
         // check if the line is on
@@ -34,7 +36,6 @@ void *execute_step(technical *data)
             {
                 pthread_mutex_lock(&line_full_mutex[line]);
                 // check the current created laptops in the this line
-                printf("line %d current count = %d\n", line, counts[line]);
                 if (counts[line] < 10)
                 {
                     // create new laptop
@@ -60,7 +61,7 @@ void *execute_step(technical *data)
                         int sleep_time = (rand() % ((step_max_time + 1) - step_min_time)) + step_min_time;
                         sleep(sleep_time);
                         new_laptop.finished_steps++;
-                        printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                        printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m is created \n", line, technical, new_laptop.laptop_id);
                         // commit changes
                         return_laptop(lists[line], new_laptop);
                         pthread_cond_signal(&finised_step_cond[line][technical]);
@@ -73,9 +74,9 @@ void *execute_step(technical *data)
                 }
                 else // All lines are full so wait until one of them be empty
                 {
-                    printf("line %d is full\n", line);
+                    printf("line %d is full of laptops\n", line);
                     pthread_cond_wait(&line_full_cond[line], &line_full_mutex[line]);
-                    printf("line %d is nott full\n", line);
+                    printf("line %d is available\n", line);
                 }
                 pthread_mutex_unlock(&line_full_mutex[line]);
             }
@@ -93,7 +94,8 @@ void *execute_step(technical *data)
                     sleep(sleep_time);
                     new_laptop.finished_steps++;
                     // Show finished laptop information
-                    printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                    // printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+
                     return_laptop(lists[line], new_laptop);
                     // Thread finish this step and send signal to the other threads in condition
                     pthread_cond_signal(&finised_step_cond[line][technical]);
@@ -125,27 +127,27 @@ void *execute_step(technical *data)
                     new_laptop.visited_techs[index] = technical;
                     // print_array(new_laptop);
                     new_laptop.finished_steps = (new_laptop.finished_steps) + 1;
-                    printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
+                    // printf("line \033[0;32m%d\033[0m, technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished step: \033[0;31m%d\n\033[0m", line, technical, new_laptop.laptop_id, new_laptop.finished_steps);
 
                     /*
                     * Check if the laptop finished all manufacturing steps
                     */
                     if (new_laptop.finished_steps == numOfSteps)
                     {
+                        printf("line \033[0;32m%d\033[0m, Last technical \033[0;31m%d\033[0m, laptop id: \033[0;32m%5d\033[0m, finished steps: \033[0;31m0\033[0m -> \033[0;31m1\033[0m -> \033[0;31m2\033[0m -> \033[0;31m3\033[0m -> \033[0;31m4\033[0m -> \033[0;31m%d\033[0m -> \033[0;31m%d\033[0m -> \033[0;31m%d\033[0m -> \033[0;31m%d\033[0m -> \033[0;31m%d\033[0m\n", line, technical, new_laptop.laptop_id, new_laptop.visited_techs[0], new_laptop.visited_techs[1], new_laptop.visited_techs[2], new_laptop.visited_techs[3], new_laptop.visited_techs[4]);
                         printf("\033[0;36mline %d , technical %d put the laptop %d in the carton box\n\033[0m", line, technical, new_laptop.laptop_id);
                         steps_finished[line] = 0; // Reset manufacturing steps counter
 
                         if (pthread_mutex_lock(&cartonbox_mutex) != 0)
                             perror("error");
 
-                        // while (laptops_in_carton_box >= numOfLines)
-                        //     ;
                         printf("\033[0;31m*********** laptops_in_carton_box = %d ***********\n\033[0m", ++laptops_in_carton_box);
                         if (pthread_mutex_unlock(&cartonbox_mutex) != 0)
                             perror("error");
+
+                        // Boxing Time
                         sleep(1);
-                        // if (pthread_cond_signal(&count_threshold_cv[line][0]) != 0)
-                        //     perror("error");
+                        // remove laptop from linked list
                         remove_laptop(lists[line], new_laptop.laptop_id);
                         counts[line]--;
                         pthread_cond_signal(&line_full_cond[line]);
@@ -157,21 +159,23 @@ void *execute_step(technical *data)
                 }
                 else
                 {
-                    // printf("no free from %d\n", technical);
+                    // sleep for 1 seconds when all laptops are under manifacturing
                     sleep(1);
                 }
             }
-            sleep(1);
-            //printf("laptops_in_storage_room : %d\n", laptops_in_storage_room);
+
             if (laptops_in_storage_room >= STORAGEMAXTHRESHOLD)
             {
+                printf("THE STORAGE HAS REACHED MAX THRESHOLD ( STOP ACCEPTING LAPTOPS )\n");
                 while (laptops_in_storage_room >= STORAGEMINTHRESHOLD)
                     sleep(1);
+                printf("THE STORAGE HAS REACHED MIN THRESHOLD ( CONTINUE ACCEPTING LAPTOPS )\n");
             }
         }
         else
         {
-            sleep(5);
+            // check if line is up again
+            sleep(2);
         }
     }
 }
@@ -179,7 +183,6 @@ void *execute_step(technical *data)
 /* function to be executed by the STORAGE EMPLOYEE thread */
 void *collect_filled_carton(void *data)
 {
-    printf("Storage Employee Created!\n");
     while (1)
     {
         if (pthread_mutex_lock(&cartonbox_mutex) != 0)
@@ -208,10 +211,9 @@ void *collect_filled_carton(void *data)
 void *load_truck(int *data)
 {
     int me = *((int *)data);
-    printf("Loading Employee No.%d Created!\n", me);
     /*
     * Load laptops to truck
-    */ 
+    */
     while (1)
     {
         if (pthread_mutex_lock(&loading_mutex) != 0)
@@ -227,9 +229,7 @@ void *load_truck(int *data)
             {
                 printf("\033[0;36mTruck No.%d is full\n\033[0m", current_truck);
                 current_time = time(NULL);
-                printf("\033[0;36mTruck No.%d is full, current time is %ld and the truck time is %ld \n\033[0m", current_truck, current_time, trucks_time[current_truck]);
                 int delta_time = current_time - trucks_time[current_truck];
-                printf("\033[0;36mTruck No.%d is full, delats is %d and the max is %d \n\033[0m", current_truck, delta_time, (int)TruckTrevelTime);
                 if (delta_time >= (int)TruckTrevelTime)
                 {
                     trucks[current_truck] = 0;
@@ -270,14 +270,7 @@ void *calculate_profit(int *data)
 {
     while (1)
     {
-        // TODO: add ifs to check if the program ends use the comment below to know the states, let each one retuen a different status and check the status in the main.
-        if(numOfLines >= (OriginalnumOfLines / (float)2)){
-            return 5;
-        }
-        
-        if ((total_gains - expenses) < PROFITCEIL){
-            return 6;
-        }
+        // month period
         sleep(30);
         printf("Calculating..\n\n");
         expenses = (exportedLaptops * CostFAB) + SalaryCEO + SalaryHR +
@@ -285,8 +278,21 @@ void *calculate_profit(int *data)
                    (SalaryL * numOfLoadingEmployees) +
                    (SalaryU * numOfTrucks) + (SalaryA * 0);
         gains_this_month = exportedLaptops * PriceSELL;
-        printf("Profit: %d\n", gains_this_month - expenses);
-        if ((gains_this_month - expenses) < PROFITMINTHRESHOLD)
+
+        int month_profit = gains_this_month - expenses;
+
+        if (month_profit > PROFITMAXTHRESHOLD)
+        {
+            printf("Profit This Month: \033[0;32m%d\033[0m\n", month_profit);
+        }
+        else if (month_profit < PROFITMINTHRESHOLD)
+        {
+            printf("Profit This Month: \033[0;31m%d\033[0m\n", month_profit);
+        }
+        else{
+            printf("Profit This Month: %d\n", month_profit);
+        }
+        if ((gains_this_month - expenses) <= PROFITMINTHRESHOLD)
         {
             numOfLines--;
             printf("Suspend a Line! ( LINE %d is going DOWN )\n\n", numOfLines);
@@ -300,6 +306,16 @@ void *calculate_profit(int *data)
         }
         total_gains += gains_this_month;
         exportedLaptops = 0;
+
+        if (numOfLines < (OriginalnumOfLines / (float)2))
+        {
+            return 5;
+        }
+
+        if (total_gains >= GAINCEIL)
+        {
+            return 6;
+        }
     }
 }
 /* like any C program, program's execution begins in main */
@@ -314,6 +330,11 @@ int main(int argc, char *argv[])
     * Read given values from argument.txt file 
     */
     arguments = fopen("arguments.txt", "r");
+    if (arguments == NULL)
+    {
+        perror("CANT OPEN FILE");
+        exit(1);
+    }
     fscanf(arguments, "%s %d\n", tmp, &STORAGEMAXTHRESHOLD);
     fscanf(arguments, "%s %d\n", tmp, &STORAGEMINTHRESHOLD);
     fscanf(arguments, "%s %d\n", tmp, &StorageEmpPeriod);
@@ -353,8 +374,6 @@ int main(int argc, char *argv[])
 
     printf("Welcome to Our Factory!\n");
 
-   
-
     for (int i = 0; i < numOfLines; i++)
     {
         for (int j = 0; j < numOfSteps; j++)
@@ -371,7 +390,6 @@ int main(int argc, char *argv[])
         }
     }
 
-    
     if (pthread_create(&storage_employee, NULL, (void *)collect_filled_carton, (void *)&a) != 0)
     {
         perror("failed to create storage_employee thread");
@@ -392,15 +410,15 @@ int main(int argc, char *argv[])
     void *status;
 
     pthread_join(accountant, &status);
-    printf("status is : %d \n", status);
 
-    // TODO: check why ir ended to print it, and kill all , use status from the line above
     // Number of lines greater than half of them
-    if(status==5){
+    if (status == 5)
+    {
         printf("Number of lines fgreater than half of them\n");
     }
 
-    if (status==6){
+    if (status == 6)
+    {
         printf("Profits reach the required value\n");
     }
     printf("\n\n TOTAL GAIN IS %d", total_gains);

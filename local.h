@@ -3,6 +3,7 @@
 #include <unistd.h>
 #include <sched.h>
 #include <time.h>
+#include <stdlib.h>
 
 #define OriginalnumOfLines 10
 #define numOfSteps 10
